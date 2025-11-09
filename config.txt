@@ -1,0 +1,64 @@
+# Configuration file for LSTM-Transformer Hybrid Stock Prediction System
+
+import os
+from datetime import datetime
+
+# [1] 데이터 관련 설정 (Data Configuration)
+SEQ_LENGTH = 60                # 입력 시퀀스 길이 (60일 사용하여 다음날 예측)
+TEST_SPLIT_RATIO = 0.2         # 테스트 데이터 비율 (80% 학습, 20% 테스트)
+VALIDATION_SPLIT = 0.2         # 검증 데이터 비율 (학습 데이터의 20%)
+FUTURE_DAYS = 30               # 미래 예측일 수
+NORMALIZE_METHOD = 'minmax'    # 정규화 방법 ('minmax' 또는 'standard')
+RANDOM_SEED = 42              # 재현성을 위한 랜덤 시드
+
+# [2] 모델 아키텍처 설정 (Model Architecture Configuration)
+TRANSFORMER_HEADS = 4          # Multi-head Attention 헤드 수
+TRANSFORMER_FF_DIM = 128       # Transformer Feed-Forward 차원
+TRANSFORMER_LAYERS = 2         # Transformer 인코더 레이어 개수
+LSTM_UNITS_1 = 64             # 첫 번째 LSTM 레이어 은닉 유닛
+LSTM_UNITS_2 = 32             # 두 번째 LSTM 레이어 은닉 유닛
+DENSE_UNITS = [128, 64]       # 완전연결층 유닛 수 (리스트)
+DROPOUT_RATE = 0.1            # 드롭아웃 비율
+ACTIVATION = 'relu'           # 활성화 함수
+
+# [3] 훈련 파라미터 (Training Parameters)
+BATCH_SIZE = 32               # 미니배치 크기
+EPOCHS = 100                  # 최대 에포크 수
+LEARNING_RATE = 0.001         # 초기 학습률
+OPTIMIZER = 'adam'            # 최적화 알고리즘
+LOSS_FUNCTION = 'mse'         # 손실 함수 (MSE)
+EARLY_STOPPING_PATIENCE = 10   # 조기 종료 대기 에포크
+REDUCE_LR_PATIENCE = 5         # 학습률 감소 대기 에포크
+REDUCE_LR_FACTOR = 0.5        # 학습률 감소 인수
+MIN_LEARNING_RATE = 1e-5      # 최소 학습률
+
+# [4] 경로 및 파일 설정 (Path and File Configuration)
+DATA_PATH = './data/'          # 입력 데이터 경로
+MODEL_SAVE_PATH = './results/models/'
+PREDICTIONS_SAVE_PATH = './results/predictions/'
+PLOTS_SAVE_PATH = './results/plots/'
+LOGS_PATH = './logs/'
+TIMESTAMP_FORMAT = '%Y%m%d_%H%M%S'  # 파일명 타임스탬프
+
+# [5] 시각화 설정 (Visualization Configuration)
+FIGURE_DPI = 300              # 그래프 해상도
+FIGURE_SIZE = (14, 6)         # 그래프 크기
+FONT_SIZE = 11                # 폰트 크기
+PLOT_COLORS = {
+    'actual': '#1f77b4',          # 실제값 (파란색)
+    'predicted': '#ff7f0e',       # 예측값 (주황색)
+    'future': '#d62728'           # 미래 (빨간색)
+}
+GRID_ALPHA = 0.3              # 그리드 투명도
+
+# Utility function to get current timestamp
+def get_timestamp():
+    return datetime.now().strftime(TIMESTAMP_FORMAT)
+
+# Utility function to ensure directories exist
+def ensure_directories():
+    os.makedirs(DATA_PATH, exist_ok=True)
+    os.makedirs(MODEL_SAVE_PATH, exist_ok=True)
+    os.makedirs(PREDICTIONS_SAVE_PATH, exist_ok=True)
+    os.makedirs(PLOTS_SAVE_PATH, exist_ok=True)
+    os.makedirs(LOGS_PATH, exist_ok=True)
