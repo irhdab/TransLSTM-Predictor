@@ -3,53 +3,53 @@
 import os
 from datetime import datetime
 
-# [1] 데이터 관련 설정 (Data Configuration)
-SEQ_LENGTH = 60                # 입력 시퀀스 길이 (60일 사용하여 다음날 예측)
-TEST_SPLIT_RATIO = 0.2         # 테스트 데이터 비율 (80% 학습, 20% 테스트)
-VALIDATION_SPLIT = 0.2         # 검증 데이터 비율 (학습 데이터의 20%)
-FUTURE_DAYS = 30               # 미래 예측일 수
-NORMALIZE_METHOD = 'minmax'    # 정규화 방법 ('minmax' 또는 'standard')
-RANDOM_SEED = 42              # 재현성을 위한 랜덤 시드
+# [1] Data Configuration
+SEQ_LENGTH = 60                # Input sequence length (use 60 days to predict the next day)
+TEST_SPLIT_RATIO = 0.2         # Test data ratio (80% for training, 20% for testing)
+VALIDATION_SPLIT = 0.2         # Validation data ratio (20% of training data)
+FUTURE_DAYS = 30               # Number of future days to predict
+NORMALIZE_METHOD = 'minmax'    # Normalization method ('minmax' or 'standard')
+RANDOM_SEED = 42              # Random seed for reproducibility
 
-# [2] 모델 아키텍처 설정 (Model Architecture Configuration)
-TRANSFORMER_HEADS = 4          # Multi-head Attention 헤드 수
-TRANSFORMER_FF_DIM = 128       # Transformer Feed-Forward 차원
-TRANSFORMER_LAYERS = 2         # Transformer 인코더 레이어 개수
-LSTM_UNITS_1 = 64             # 첫 번째 LSTM 레이어 은닉 유닛
-LSTM_UNITS_2 = 32             # 두 번째 LSTM 레이어 은닉 유닛
-DENSE_UNITS = [128, 64]       # 완전연결층 유닛 수 (리스트)
-DROPOUT_RATE = 0.1            # 드롭아웃 비율
-ACTIVATION = 'relu'           # 활성화 함수
+# [2] Model Architecture Configuration
+TRANSFORMER_HEADS = 4          # Number of Multi-head Attention heads
+TRANSFORMER_FF_DIM = 128       # Transformer Feed-Forward dimension
+TRANSFORMER_LAYERS = 2         # Number of Transformer encoder layers
+LSTM_UNITS_1 = 64             # Hidden units in the first LSTM layer
+LSTM_UNITS_2 = 32             # Hidden units in the second LSTM layer
+DENSE_UNITS = [128, 64]       # Number of units in the fully connected layers (list)
+DROPOUT_RATE = 0.1            # Dropout rate
+ACTIVATION = 'relu'           # Activation function
 
-# [3] 훈련 파라미터 (Training Parameters)
-BATCH_SIZE = 32               # 미니배치 크기
-EPOCHS = 100                  # 최대 에포크 수
-LEARNING_RATE = 0.001         # 초기 학습률
-OPTIMIZER = 'adam'            # 최적화 알고리즘
-LOSS_FUNCTION = 'mse'         # 손실 함수 (MSE)
-EARLY_STOPPING_PATIENCE = 10   # 조기 종료 대기 에포크
-REDUCE_LR_PATIENCE = 5         # 학습률 감소 대기 에포크
-REDUCE_LR_FACTOR = 0.5        # 학습률 감소 인수
-MIN_LEARNING_RATE = 1e-5      # 최소 학습률
+# [3] Training Parameters
+BATCH_SIZE = 32               # Minibatch size
+EPOCHS = 100                  # Maximum number of epochs
+LEARNING_RATE = 0.001         # Initial learning rate
+OPTIMIZER = 'adam'            # Optimization algorithm
+LOSS_FUNCTION = 'mse'         # Loss function (MSE)
+EARLY_STOPPING_PATIENCE = 10   # Epochs to wait for early stopping
+REDUCE_LR_PATIENCE = 5         # Epochs to wait for learning rate reduction
+REDUCE_LR_FACTOR = 0.5        # Factor for learning rate reduction
+MIN_LEARNING_RATE = 1e-5      # Minimum learning rate
 
-# [4] 경로 및 파일 설정 (Path and File Configuration)
-DATA_PATH = './data/'          # 입력 데이터 경로
+# [4] Path and File Configuration
+DATA_PATH = './data/'          # Input data path
 MODEL_SAVE_PATH = './results/models/'
 PREDICTIONS_SAVE_PATH = './results/predictions/'
 PLOTS_SAVE_PATH = './results/plots/'
 LOGS_PATH = './logs/'
-TIMESTAMP_FORMAT = '%Y%m%d_%H%M%S'  # 파일명 타임스탬프
+TIMESTAMP_FORMAT = '%Y%m%d_%H%M%S'  # Timestamp for filenames
 
-# [5] 시각화 설정 (Visualization Configuration)
-FIGURE_DPI = 300              # 그래프 해상도
-FIGURE_SIZE = (14, 6)         # 그래프 크기
-FONT_SIZE = 11                # 폰트 크기
+# [5] Visualization Configuration
+FIGURE_DPI = 300              # Graph resolution
+FIGURE_SIZE = (14, 6)         # Graph size
+FONT_SIZE = 11                # Font size
 PLOT_COLORS = {
-    'actual': '#1f77b4',          # 실제값 (파란색)
-    'predicted': '#ff7f0e',       # 예측값 (주황색)
-    'future': '#d62728'           # 미래 (빨간색)
+    'actual': '#1f77b4',          # Actual value (blue)
+    'predicted': '#ff7f0e',       # Predicted value (orange)
+    'future': '#d62728'           # Future value (red)
 }
-GRID_ALPHA = 0.3              # 그리드 투명도
+GRID_ALPHA = 0.3              # Grid transparency
 
 # Utility function to get current timestamp
 def get_timestamp():
