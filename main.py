@@ -17,15 +17,15 @@ def main():
     # Ensure all necessary directories exist
     config.ensure_directories()
 
-    # Get CSV path from command-line argument or use default
+    # Get CSV path from command-line argument or terminate if not found
     if len(sys.argv) > 1:
         user_csv_path = sys.argv[1]
         if not os.path.exists(user_csv_path):
-            print(f"Error: File not found at {user_csv_path}. Using default data/GOOGL.csv.")
-            user_csv_path = os.path.join(config.DATA_PATH, 'GOOGL.csv')
+            print(f"Error: File not found at {user_csv_path}. Please provide a valid CSV file path.")
+            sys.exit(1) # Terminate if file not found
     else:
-        print("No CSV path provided. Using default data/GOOGL.csv.")
-        user_csv_path = os.path.join(config.DATA_PATH, 'GOOGL.csv')
+        print("Error: No CSV path provided. Please provide a CSV file path as a command-line argument.")
+        sys.exit(1) # Terminate if no CSV path provided
     
     # Initialize the data processor
     data_processor = DataProcessor(csv_path=user_csv_path, config=config)
@@ -44,7 +44,7 @@ def main():
         model = build_model(seq_length=config.SEQ_LENGTH, num_features=X_train.shape[2], config=config)
 
         # Train the model
-        trainer = ModelTrainer(model, config, scaler)
+        trainer = ModelTrainer(model, config, scaler, user_csv_path)
         trainer.compile_model()
         trainer.train(X_train, y_train)
 

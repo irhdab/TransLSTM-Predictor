@@ -11,7 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
 import config
 
 class ModelTrainer:
-    def __init__(self, model, config, scaler):
+    def __init__(self, model, config, scaler, csv_path):
         """
         Initialize the ModelTrainer with model and configuration.
         
@@ -19,10 +19,12 @@ class ModelTrainer:
             model: TensorFlow model to train
             config: Configuration object
             scaler: The MinMaxScaler object used for data normalization
+            csv_path: Path to the CSV file used for data
         """
         self.model = model
         self.config = config
         self.scaler = scaler
+        self.csv_path = csv_path
 
     def compile_model(self):
         """
@@ -182,7 +184,10 @@ class ModelTrainer:
         plt.grid(True, alpha=self.config.GRID_ALPHA)
         plt.tight_layout()
         
-        plot_path = os.path.join(self.config.PLOTS_SAVE_PATH, 'predictions.png')
+        # Extract filename from csv_path to use in plot filename
+        csv_filename = os.path.basename(self.csv_path)
+        plot_filename = os.path.splitext(csv_filename)[0] + '.png'
+        plot_path = os.path.join(self.config.PLOTS_SAVE_PATH, plot_filename)
         plt.savefig(plot_path)
         print(f"Plot saved to {plot_path}")
 
