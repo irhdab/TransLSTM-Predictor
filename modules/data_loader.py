@@ -106,7 +106,7 @@ class DataProcessor:
 
     def handle_outliers(self, df):
         """
-        Handle outliers using IQR method.
+        Handle outliers using IQR method on price returns.
         
         Args:
             df (pd.DataFrame): DataFrame to process
@@ -114,86 +114,106 @@ class DataProcessor:
         Returns:
             pd.DataFrame: DataFrame with outliers handled
         """
-        print("Handling outliers...")
+        print("Handling outliers using price returns...")
         df = df.copy()
-        initial_rows = len(df)
         
-        # Apply IQR method to close prices
-        Q1 = df['close'].quantile(0.25)
-        Q3 = df['close'].quantile(0.75)
+        # Calculate daily returns
+        returns = df['close'].pct_change()
+        
+        # Apply IQR method to returns
+        Q1 = returns.quantile(0.05) # Be more lenient for stock data
+        Q3 = returns.quantile(0.95)
         IQR = Q3 - Q1
         
-        lower_bound = Q1 - 1.5 * IQR
-        upper_bound = Q3 + 1.5 * IQR
+        lower_bound = Q1 - 2.0 * IQR
+        upper_bound = Q3 + 2.0 * IQR
         
-        # Filter out outliers
-        df_filtered = df[(df['close'] >= lower_bound) & (df['close'] <= upper_bound)]
-        final_rows = len(df_filtered)
+        # Keep rows where returns are within bounds (first row is NaN, keep it)
+        mask = (returns >= lower_bound) & (returns <= upper_bound)
+        mask.iloc[0] = True 
         
-        print(f"Outliers handled: {initial_rows - final_rows} rows removed")
+        df_filtered = df[mask].reset_index(drop=True)
+        print(f"Outliers handled: {len(df) - len(df_filtered)} rows removed")
         return df_filtered
 
     def extract_features(self, df):
         """
-        Extract OHLCV features from DataFrame.
+        Calculate technical indicators and extract features.
         
         Args:
             df (pd.DataFrame): DataFrame with OHLCV columns
             
         Returns:
-            np.array: Array of shape (N, 5) with OHLCV features
+            np.array: Array of features defined in config
         """
-        print("Extracting features...")
-        features = df[['open', 'high', 'low', 'close', 'volume']].values
+        print("Calculating technical indicators and extracting features...")
+        df = df.copy()
         
-        # Normalize volume to prevent large values from dominating
-        features[:, 4] = features[:, 4] / np.max(features[:, 4])
+        # Moving Averages
+        df['ma_7'] = df['close'].rolling(window=7).mean()
+        df['ma_21'] = df['close'].rolling(window=21).mean()
         
+        # RSI
+        delta = df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['rsi'] = 100 - (100 / (1 + rs))
+        
+        # MACD
+        exp1 = df['close'].ewm(span=12, adjust=False).mean()
+        exp2 = df['close'].ewm(span=26, adjust=False).mean()
+        df['macd'] = exp1 - exp2
+        
+        # Bollinger Bands
+        df['ma_20'] = df['close'].rolling(window=20).mean()
+        df['std_20'] = df['close'].rolling(window=20).std()
+        df['bollinger_h'] = df['ma_20'] + (df['std_20'] * 2)
+        df['bollinger_l'] = df['ma_20'] - (df['std_20'] * 2)
+        
+        # Drop NaNs created by indicators
+        df = df.dropna().reset_index(drop=True)
+        self.data_with_indicators = df # Store for date alignment if needed
+        
+        features = df[self.config.FEATURE_COLS].values
         print(f"✓ Features extracted: {features.shape}")
         return features
 
     def normalize_data(self, features):
         """
         Normalize features using MinMaxScaler.
-        
-        Args:
-            features (np.array): Array of features to normalize
-            
-        Returns:
-            tuple: (normalized_features, scaler)
         """
         print("Normalizing data...")
         self.scaler = MinMaxScaler()
         normalized_features = self.scaler.fit_transform(features)
-        
-        # Verify normalization
-        print(f"Normalization range: [{np.min(normalized_features):.3f}, {np.max(normalized_features):.3f}]")
         print("✓ Data normalization completed")
         return normalized_features, self.scaler
 
     def create_sequences(self, data, original_dates):
         """
-        Create sequences for time series prediction.
-        
-        Args:
-            data (np.array): Normalized data array of shape (N, features)
-            original_dates (pd.Series): Original dates corresponding to the data
-            
-        Returns:
-            tuple: (X_train, X_test, y_train, y_test, test_dates)
+        Create multi-step sequences for time series prediction.
+        Target is a window of FUTURE_DAYS.
         """
-        print("Creating sequences...")
+        print("Creating multi-step sequences...")
         seq_length = self.config.SEQ_LENGTH
+        future_days = self.config.FUTURE_DAYS
+        
         sequences = []
         targets = []
         
-        # Create sequences
-        for i in range(len(data) - seq_length):
+        # We need enough data to have both a sequence and a future window
+        for i in range(len(data) - seq_length - future_days + 1):
             sequences.append(data[i:i + seq_length])
-            targets.append(data[i + seq_length, 3])  # Close price is index 3
+            # Target is the 'close' price (index CLOSE_COL_INDEX) for the next FUTURE_DAYS
+            targets.append(data[i + seq_length:i + seq_length + future_days, self.config.CLOSE_COL_INDEX])
             
         sequences = np.array(sequences)
         targets = np.array(targets)
+        
+        # Align dates with the end of the input sequence
+        # The test_dates should correspond to the point where we make the prediction
+        # For a given sequence [i : i+seq_length], the "current" date is original_dates[i + seq_length - 1]
+        aligned_dates = original_dates.iloc[seq_length - 1 : seq_length - 1 + len(sequences)].reset_index(drop=True)
         
         # Split into train/test
         split_idx = int(len(sequences) * (1 - self.config.TEST_SPLIT_RATIO))
@@ -202,16 +222,11 @@ class DataProcessor:
         X_test = sequences[split_idx:]
         y_train = targets[:split_idx]
         y_test = targets[split_idx:]
-        
-        # Get corresponding test dates
-        test_dates = original_dates[seq_length + split_idx:].reset_index(drop=True)
+        test_dates = aligned_dates[split_idx:].reset_index(drop=True)
         
         print(f"Sequences created:")
-        print(f"  - X_train: {X_train.shape}")
-        print(f"  - X_test: {X_test.shape}")
-        print(f"  - y_train: {y_train.shape}")
-        print(f"  - y_test: {y_test.shape}")
-        print(f"  - test_dates: {test_dates.shape}")
+        print(f"  - X_train: {X_train.shape}, y_train: {y_train.shape}")
+        print(f"  - X_test: {X_test.shape}, y_test: {y_test.shape}")
         
         return X_train, X_test, y_train, y_test, test_dates
 

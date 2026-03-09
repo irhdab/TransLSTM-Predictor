@@ -4,26 +4,33 @@ import os
 from datetime import datetime
 
 # [1] Data Configuration
-SEQ_LENGTH = 60                # Input sequence length (use 60 days to predict the next day)
-TEST_SPLIT_RATIO = 0.2         # Test data ratio (80% for training, 20% for testing)
-VALIDATION_SPLIT = 0.2         # Validation data ratio (20% of training data)
-FUTURE_DAYS = 30               # Number of future days to predict
-NORMALIZE_METHOD = 'minmax'    # Normalization method ('minmax' or 'standard')
+SEQ_LENGTH = 60                # Input sequence length
+TEST_SPLIT_RATIO = 0.2         # Test data ratio
+VALIDATION_SPLIT = 0.2         # Validation data ratio
+FUTURE_DAYS = 30               # Number of future days to predict (Multi-step output)
+NORMALIZE_METHOD = 'minmax'    # Normalization method
 RANDOM_SEED = 42              # Random seed for reproducibility
 
+# Feature Columns Configuration
+# These are the columns used after feature engineering in DataProcessor
+FEATURE_COLS = ['open', 'high', 'low', 'close', 'volume', 'ma_7', 'ma_21', 'rsi', 'macd', 'bollinger_h', 'bollinger_l']
+CLOSE_COL_INDEX = 3            # Index of 'close' in FEATURE_COLS
+
 # [2] Model Architecture Configuration
-TRANSFORMER_HEADS = 4          # Number of Multi-head Attention heads
-TRANSFORMER_FF_DIM = 128       # Transformer Feed-Forward dimension
-TRANSFORMER_LAYERS = 2         # Number of Transformer encoder layers
-LSTM_UNITS_1 = 64             # Hidden units in the first LSTM layer
-LSTM_UNITS_2 = 32             # Hidden units in the second LSTM layer
-DENSE_UNITS = [128, 64]       # Number of units in the fully connected layers (list)
-DROPOUT_RATE = 0.1            # Dropout rate
-ACTIVATION = 'relu'           # Activation function
+CONV_FILTERS = 64              # Filters for CNN layer
+CONV_KERNEL_SIZE = 3           # Kernel size for CNN layer
+TRANSFORMER_HEADS = 8          # Increased heads for better attention
+TRANSFORMER_FF_DIM = 256       # Increased FF dimension
+TRANSFORMER_LAYERS = 3         # More layers
+LSTM_UNITS_1 = 128            # Increased units
+LSTM_UNITS_2 = 64
+DENSE_UNITS = [256, 128]
+DROPOUT_RATE = 0.2            # Slightly higher dropout for regularization
+ACTIVATION = 'relu'
 
 # [3] Training Parameters
 BATCH_SIZE = 32               # Minibatch size
-EPOCHS = 100                  # Maximum number of epochs
+EPOCHS = 100                 # Maximum number of epochs
 LEARNING_RATE = 0.001         # Initial learning rate
 OPTIMIZER = 'adam'            # Optimization algorithm
 LOSS_FUNCTION = 'mse'         # Loss function (MSE)

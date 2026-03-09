@@ -38,7 +38,7 @@ class ModelTrainer:
             metrics=['mae']
         )
         print("✓ Model compiled successfully")
-        self.model.summary()
+        # self.model.summary() # Commented out to avoid console width error in some environments
 
     def setup_callbacks(self):
         """
@@ -107,52 +107,63 @@ class ModelTrainer:
         print("✓ Model training completed")
         return history
 
-    def evaluate(self, X_test, y_test, test_dates, future_predictions=None, future_dates=None):
+    def evaluate(self, X_test, y_test, test_dates, future_predictions_rescaled=None, future_dates=None):
         """
         Evaluate the model on test data and plot predictions.
         
         Args:
-            X_test: Test features
-            y_test: Test targets
-            test_dates: Dates for the test set
-            future_predictions: Rescaled future predictions
-            future_dates: Dates for future predictions
+            X_test (np.array): Test features.
+            y_test (np.array): True target values for the test set (normalized, multi-step).
+            test_dates (pd.Series): Dates corresponding to the test set.
+            future_predictions_rescaled (np.array, optional): Rescaled future predictions. Defaults to None.
+            future_dates (pd.Series, optional): Dates for future predictions. Defaults to None.
             
         Returns:
-            tuple: (mse, mae, mape)
+            tuple: (mse, mae, mape) for the multi-step predictions.
         """
         print("Evaluating model...")
-        y_pred_normalized = self.model.predict(X_test, verbose=0)
+        y_pred_normalized = self.model.predict(X_test, verbose=0) # Shape: [num_samples, FUTURE_DAYS]
         
-        # Inverse transform y_pred_normalized to match the scale of y_test
-        # Create a dummy array with the same number of features as original_features
-        # Assuming features.shape[1] is available or can be derived (e.g., from X_test.shape[2])
-        num_features = X_test.shape[2] # Get num_features from X_test
-        dummy_y_pred = np.zeros((len(y_pred_normalized), num_features))
-        dummy_y_pred[:, 3] = y_pred_normalized.flatten() # Put predictions in the 'close' column
-        y_pred_rescaled = self.scaler.inverse_transform(dummy_y_pred)[:, 3]
+        num_features = X_test.shape[2]
+        
+        # Rescale all predicted steps and true steps for evaluation
+        y_pred_rescaled_all_steps = np.zeros_like(y_pred_normalized)
+        y_test_rescaled_all_steps = np.zeros_like(y_test)
 
-        # Calculate metrics using rescaled values
-        mse = mean_squared_error(y_test, y_pred_rescaled)
-        mae = mean_absolute_error(y_test, y_pred_rescaled)
-        mape = np.mean(np.abs((y_test - y_pred_rescaled) / y_test)) * 100
+        # Create dummy arrays for inverse transformation
+        # The scaler expects a full feature vector, so we fill the 'close' price and keep others as zeros
+        for i in range(self.config.FUTURE_DAYS):
+            # For predictions
+            dummy_y_pred_step = np.zeros((len(y_pred_normalized), num_features))
+            dummy_y_pred_step[:, self.config.CLOSE_COL_INDEX] = y_pred_normalized[:, i]
+            y_pred_rescaled_all_steps[:, i] = self.scaler.inverse_transform(dummy_y_pred_step)[:, self.config.CLOSE_COL_INDEX]
+            
+            # For true values
+            dummy_y_test_step = np.zeros((len(y_test), num_features))
+            dummy_y_test_step[:, self.config.CLOSE_COL_INDEX] = y_test[:, i]
+            y_test_rescaled_all_steps[:, i] = self.scaler.inverse_transform(dummy_y_test_step)[:, self.config.CLOSE_COL_INDEX]
+
+        # Calculate metrics for all FUTURE_DAYS
+        # Flatten arrays to calculate overall metrics across all steps and samples
+        mse = mean_squared_error(y_test_rescaled_all_steps.flatten(), y_pred_rescaled_all_steps.flatten())
+        mae = mean_absolute_error(y_test_rescaled_all_steps.flatten(), y_pred_rescaled_all_steps.flatten())
         
-        print(f"Evaluation results:")
+        # Avoid division by zero for MAPE
+        # Filter out zero values from y_test_rescaled_all_steps to prevent division by zero
+        non_zero_y_test = y_test_rescaled_all_steps.flatten()[y_test_rescaled_all_steps.flatten() != 0]
+        if len(non_zero_y_test) > 0:
+            mape = np.mean(np.abs((y_test_rescaled_all_steps.flatten()[y_test_rescaled_all_steps.flatten() != 0] - y_pred_rescaled_all_steps.flatten()[y_test_rescaled_all_steps.flatten() != 0]) / non_zero_y_test)) * 100
+        else:
+            mape = np.nan # Or handle as appropriate if all true values are zero
+
+        print(f"Evaluation results (Multi-step prediction over {self.config.FUTURE_DAYS} days):")
         print(f"  - MSE: {mse:.6f}")
         print(f"  - MAE: {mae:.6f}")
         print(f"  - MAPE: {mape:.2f}%")
-
-        print(f"\n--- Debugging trainer.py (evaluate) ---")
-        print(f"y_test sample (first 5): {y_test[:5]}")
-        print(f"y_pred_rescaled sample (first 5): {y_pred_rescaled[:5]}")
-        print(f"test_dates sample (first 5): {test_dates[:5]}")
-        if future_predictions is not None:
-            print(f"future_predictions sample (first 5): {future_predictions[:5]}")
-        if future_dates is not None:
-            print(f"future_dates sample (first 5): {future_dates[:5]}")
-        print(f"--- End Debugging trainer.py (evaluate) ---\n")
         
-        self.plot_predictions(y_test, y_pred_rescaled, test_dates, future_predictions, future_dates)
+        # For plotting, we use the first day (Day 1) prediction as the "Predicted" value for historical comparison
+        # We'll plot the actual vs predicted for the first day of each window for historical comparison
+        self.plot_predictions(y_test_rescaled_all_steps[:, 0], y_pred_rescaled_all_steps[:, 0], test_dates, future_predictions_rescaled, future_dates)
         
         return mse, mae, mape
 
