@@ -1,45 +1,59 @@
-# LSTM-Transformer Hybrid Stock Prediction System
+# TransLSTM-Predictor: State-of-the-art Stock Prediction System
 
-## Overview
+## 🚀 Overview
 
-This project is a stock price prediction system that uses a hybrid model of LSTM (Long Short-Term Memory) and Transformer networks. It is designed to predict future stock prices based on historical data.
+**TransLSTM-Predictor** is a high-performance quantitative trading model that combines **CNN, Bi-LSTM, and Transformer** architectures to achieve state-of-the-art (SOTA) accuracy in stock movement forecasting.
 
-## Features
+Unlike traditional price predictors, this system focuses on **Percentage Returns Prediction**, utilizing advanced ensemble methods and rigorous validation strategies to provide reliable trading signals.
 
-- **Hybrid Model:** Combines LSTM and Transformer to capture both long-term dependencies and complex patterns in time-series data.
-- **Data Preprocessing:** Includes data loading, normalization, and sequence creation.
-- **Model Training:** Trains the hybrid model with the processed data.
-- **Prediction:** Predicts future stock prices.
-- **Visualization:** Plots the actual vs. predicted stock prices.
-- **Configurable:** All major parameters can be configured in `config/config.py`.
+## ✨ Advanced Features (New)
 
-## Requirements
+- **Return-Based Prediction (SOTA Strategy)**: Predicts % daily returns instead of absolute prices, significantly improving model stability and generalizability across different price scales.
+- **CNN-LSTM-Transformer Hybrid**:
+  - **CNN**: Extracts local spatial features (price patterns).
+  - **Bi-LSTM**: Captures long-term temporal dependencies.
+  - **Transformer**: Multi-head attention mechanism for complex global relationships.
+- **Quantitative Validation Suite**:
+  - **Walk-forward Validation**: Multi-fold time-series cross-validation to prevent overfitting to specific market regimes.
+  - **Ensemble Learning**: Averages predictions from multiple independently trained models to reduce variance and improve robustness.
+- **Feature Engineering**: Includes high-impact technical indicators:
+  - **Trend**: MA(7, 21), MACD.
+  - **Volatility**: Bollinger Bands, ATR (Average True Range).
+  - **Volume/Momentum**: RSI, OBV (On-Balance Volume).
+- **Financial Backtesting**: Integrated simulator to evaluate the economic performance of the model (Total Return, Sharpe Ratio, MDD, Win Rate).
+- **Dual Scaler System**: Separate normalization logic for features and targets to eliminate data leakage and price explosion issues during reconstruction.
 
-The required Python packages are listed in `requirements.txt`. You can install them using pip:
+## 🛠️ Requirements
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## How to Use
+## 📈 How to Use
 
-1.  **Place your data:** Put your stock data CSV files in the `data/` directory. The CSV file should have at least 'date' and 'close' columns.
-2.  **Run the script:** Execute the `main.py` script with the path to your CSV file as a command-line argument.
+1.  **Place your data**: Put your stock data CSV files in the `data/` directory (Columns: `date`, `open`, `high`, `low`, `close`, `volume`).
+2.  **Run the pipeline**:
+    ```bash
+    python main.py data/YOUR_STOCK_DATA.csv
+    ```
 
-```bash
-python main.py data/YOUR_STOCK_DATA.csv
-```
+The system will orchestrate:
 
-If you don't provide a path, it will use `data/GOOGL.csv` by default.
+1. Data loading & Feature Extraction
+2. Walk-forward Validation (Multi-fold training)
+3. Ensemble Prediction
+4. **Backtesting analysis**
+5. 30-day Future Forecasting & Plotting
 
-The prediction results, including plots, will be saved in the `results/` directory.
+## ⚙️ Configuration (`config/config.py`)
 
-## Configuration
+- **PREDICT_RETURNS**: Toggle between price/return prediction modes.
+- **ENSEMBLE_SIZE**: Number of parallel models to train.
+- **WALK_FORWARD_FOLDS**: Number of folds for rigorous validation.
+- **Model Hyperparameters**: Adjust Transformer heads, layers, and LSTM units.
 
-You can customize the model and training parameters by editing the `config/config.py` file. The configurable parameters include:
+## 📊 Output
 
-- **Data Configuration:** Sequence length, test split ratio, etc.
-- **Model Architecture:** Number of Transformer heads, LSTM units, dropout rate, etc.
-- **Training Parameters:** Batch size, epochs, learning rate, etc.
-- **Paths:** Paths for data, models, and results.
-- **Visualization:** Figure size, colors, etc.
+- **Model Files**: `./results/models/`
+- **Visualization Plots**: `./results/plots/` (Includes Prediction vs Actual & Backtest Equity Curve)
+- **Predictions**: `./results/predictions/`

@@ -7,13 +7,15 @@ from datetime import datetime
 SEQ_LENGTH = 60                # Input sequence length
 TEST_SPLIT_RATIO = 0.2         # Test data ratio
 VALIDATION_SPLIT = 0.2         # Validation data ratio
-FUTURE_DAYS = 30               # Number of future days to predict (Multi-step output)
+FUTURE_DAYS = 30               # Number of future days to predict
+PREDICT_RETURNS = True         # If True, predict % returns instead of absolute prices
+ENSEMBLE_SIZE = 3              # Number of models in the ensemble
+WALK_FORWARD_FOLDS = 3         # Number of folds for walk-forward validation
 NORMALIZE_METHOD = 'minmax'    # Normalization method
 RANDOM_SEED = 42              # Random seed for reproducibility
 
 # Feature Columns Configuration
-# These are the columns used after feature engineering in DataProcessor
-FEATURE_COLS = ['open', 'high', 'low', 'close', 'volume', 'ma_7', 'ma_21', 'rsi', 'macd', 'bollinger_h', 'bollinger_l']
+FEATURE_COLS = ['open', 'high', 'low', 'close', 'volume', 'ma_7', 'ma_21', 'rsi', 'macd', 'bollinger_h', 'bollinger_l', 'obv', 'atr']
 CLOSE_COL_INDEX = 3            # Index of 'close' in FEATURE_COLS
 
 # [2] Model Architecture Configuration

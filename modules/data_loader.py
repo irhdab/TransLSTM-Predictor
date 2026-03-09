@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, RobustScaler
 import warnings
 import os
 import sys
@@ -21,6 +21,7 @@ class DataProcessor:
         self.csv_path = csv_path
         self.config = config
         self.scaler = None
+        self.target_scaler = None
         self.data = None
 
     def load_raw_data(self):
@@ -106,15 +107,9 @@ class DataProcessor:
 
     def handle_outliers(self, df):
         """
-        Handle outliers using IQR method on price returns.
-        
-        Args:
-            df (pd.DataFrame): DataFrame to process
-            
-        Returns:
-            pd.DataFrame: DataFrame with outliers handled
+        Handle outliers using IQR method on price returns by clipping (prevents time-series gaps).
         """
-        print("Handling outliers using price returns...")
+        print("Handling outliers using price returns (Clipping)...")
         df = df.copy()
         
         # Calculate daily returns
@@ -128,23 +123,22 @@ class DataProcessor:
         lower_bound = Q1 - 2.0 * IQR
         upper_bound = Q3 + 2.0 * IQR
         
-        # Keep rows where returns are within bounds (first row is NaN, keep it)
-        mask = (returns >= lower_bound) & (returns <= upper_bound)
-        mask.iloc[0] = True 
+        # Identify outlier mask (ignore the first NaN return)
+        outlier_mask = (returns < lower_bound) | (returns > upper_bound)
         
-        df_filtered = df[mask].reset_index(drop=True)
-        print(f"Outliers handled: {len(df) - len(df_filtered)} rows removed")
-        return df_filtered
+        # Clip the returns
+        returns_clipped = returns.clip(lower=lower_bound, upper=upper_bound)
+        
+        # Reconstruct the close price ONLY for the outlier days using the clipped return
+        # Prevents continuous drift across the entire time series
+        df.loc[outlier_mask, 'close'] = df['close'].shift(1)[outlier_mask] * (1 + returns_clipped[outlier_mask])
+        
+        print(f"Outliers handled: {outlier_mask.sum()} values clipped to boundaries (no rows removed, time-series continuity preserved).")
+        return df
 
     def extract_features(self, df):
         """
         Calculate technical indicators and extract features.
-        
-        Args:
-            df (pd.DataFrame): DataFrame with OHLCV columns
-            
-        Returns:
-            np.array: Array of features defined in config
         """
         print("Calculating technical indicators and extracting features...")
         df = df.copy()
@@ -171,64 +165,84 @@ class DataProcessor:
         df['bollinger_h'] = df['ma_20'] + (df['std_20'] * 2)
         df['bollinger_l'] = df['ma_20'] - (df['std_20'] * 2)
         
+        # OBV (On-Balance Volume)
+        df['obv'] = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
+        
+        # ATR (Average True Range)
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        df['atr'] = tr.rolling(window=14).mean()
+        
+        # Daily Returns for target
+        df['daily_return'] = df['close'].pct_change()
+        
         # Drop NaNs created by indicators
         df = df.dropna().reset_index(drop=True)
-        self.data_with_indicators = df # Store for date alignment if needed
+        self.data_with_indicators = df
         
         features = df[self.config.FEATURE_COLS].values
         print(f"✓ Features extracted: {features.shape}")
         return features
 
-    def normalize_data(self, features):
+    def normalize_data(self, features, targets=None, train_end=None):
         """
-        Normalize features using MinMaxScaler.
+        Normalize features and targets separately to prevent scale mismatch and leakage.
+        
+        Args:
+            features (np.array): Feature matrix.
+            targets (np.array): Target matrix.
+            train_end (int, optional): The index where training data ends. 
+                                      If None, uses config.TEST_SPLIT_RATIO.
         """
-        print("Normalizing data...")
-        self.scaler = MinMaxScaler()
-        normalized_features = self.scaler.fit_transform(features)
-        print("✓ Data normalization completed")
-        return normalized_features, self.scaler
+        print("Normalizing data (Dual Scaler System with Leakage Prevention)...")
+        
+        if train_end is None:
+            seq_length = self.config.SEQ_LENGTH
+            future_days = self.config.FUTURE_DAYS
+            total_samples = len(features) - seq_length - future_days + 1
+            train_end = int(total_samples * (1 - self.config.TEST_SPLIT_RATIO)) + seq_length
+        
+        # 1. Feature Scaling
+        self.scaler = RobustScaler()
+        self.scaler.fit(features[:train_end])
+        norm_features = self.scaler.transform(features)
+        
+        # 2. Target Scaling
+        norm_targets = None
+        if targets is not None:
+            self.target_scaler = RobustScaler()
+            # Targets are aligned with sequences starting at seq_length
+            # So targets[0] matches sequence ending at seq_length - 1
+            # If features[:train_end] is used, targets up to index (train_end - seq_length) are valid for training
+            target_train_cutoff = max(0, train_end - self.config.SEQ_LENGTH)
+            self.target_scaler.fit(targets[:target_train_cutoff])
+            norm_targets = self.target_scaler.transform(targets)
+            
+        print(f"✓ Normalization completed (Fitted up to index {train_end})")
+        return norm_features, norm_targets, self.scaler, self.target_scaler
 
     def create_sequences(self, data, original_dates):
         """
-        Create multi-step sequences for time series prediction.
-        Target is a window of FUTURE_DAYS.
+        Create multi-step sequences. Returns RAW targets for normalization.
         """
-        print("Creating multi-step sequences...")
+        print("Creating multi-step sequences (Raw Targets)...")
         seq_length = self.config.SEQ_LENGTH
         future_days = self.config.FUTURE_DAYS
         
         sequences = []
         targets = []
         
-        # We need enough data to have both a sequence and a future window
+        target_data = self.data_with_indicators['close'].values
+        if self.config.PREDICT_RETURNS:
+            target_data = self.data_with_indicators['daily_return'].values
+            
         for i in range(len(data) - seq_length - future_days + 1):
             sequences.append(data[i:i + seq_length])
-            # Target is the 'close' price (index CLOSE_COL_INDEX) for the next FUTURE_DAYS
-            targets.append(data[i + seq_length:i + seq_length + future_days, self.config.CLOSE_COL_INDEX])
+            targets.append(target_data[i + seq_length:i + seq_length + future_days])
             
-        sequences = np.array(sequences)
-        targets = np.array(targets)
-        
-        # Align dates with the end of the input sequence
-        # The test_dates should correspond to the point where we make the prediction
-        # For a given sequence [i : i+seq_length], the "current" date is original_dates[i + seq_length - 1]
-        aligned_dates = original_dates.iloc[seq_length - 1 : seq_length - 1 + len(sequences)].reset_index(drop=True)
-        
-        # Split into train/test
-        split_idx = int(len(sequences) * (1 - self.config.TEST_SPLIT_RATIO))
-        
-        X_train = sequences[:split_idx]
-        X_test = sequences[split_idx:]
-        y_train = targets[:split_idx]
-        y_test = targets[split_idx:]
-        test_dates = aligned_dates[split_idx:].reset_index(drop=True)
-        
-        print(f"Sequences created:")
-        print(f"  - X_train: {X_train.shape}, y_train: {y_train.shape}")
-        print(f"  - X_test: {X_test.shape}, y_test: {y_test.shape}")
-        
-        return X_train, X_test, y_train, y_test, test_dates
+        return np.array(sequences), np.array(targets), original_dates.iloc[seq_length - 1 : seq_length - 1 + len(sequences)].reset_index(drop=True)
 
     def get_scaler(self):
         """
