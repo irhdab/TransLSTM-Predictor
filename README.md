@@ -52,7 +52,7 @@ The system will orchestrate:
 - **WALK_FORWARD_FOLDS**: Number of folds for rigorous validation.
 - **Model Hyperparameters**: Adjust Transformer heads, layers, and LSTM units.
 
-## 📊 Output
+## Output
 
 - **Model Files**: `./results/models/`
 - **Visualization Plots**: `./results/plots/` (Includes Prediction vs Actual & Backtest Equity Curve)
