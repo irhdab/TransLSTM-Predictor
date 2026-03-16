@@ -2,7 +2,7 @@
 
 ## Overview
 
-**TransLSTM-Predictor** is a high-performance quantitative trading model that combines **CNN, Bi-LSTM, and Transformer** architectures to achieve state-of-the-art (SOTA) accuracy in stock movement forecasting.
+**TransLSTM-Predictor** is a quantitative trading model that combines **CNN, Bi-LSTM, and Transformer** architectures to achieve state-of-the-art (SOTA) accuracy in stock movement forecasting.
 
 Unlike traditional price predictors, this system focuses on **Percentage Returns Prediction**, utilizing advanced ensemble methods and rigorous validation strategies to provide reliable trading signals.
 
