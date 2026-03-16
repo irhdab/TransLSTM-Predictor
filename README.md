@@ -1,12 +1,12 @@
 # TransLSTM-Predictor: State-of-the-art Stock Prediction System
 
-## 🚀 Overview
+## Overview
 
 **TransLSTM-Predictor** is a high-performance quantitative trading model that combines **CNN, Bi-LSTM, and Transformer** architectures to achieve state-of-the-art (SOTA) accuracy in stock movement forecasting.
 
 Unlike traditional price predictors, this system focuses on **Percentage Returns Prediction**, utilizing advanced ensemble methods and rigorous validation strategies to provide reliable trading signals.
 
-## ✨ Advanced Features (New)
+## Advanced Features
 
 - **Return-Based Prediction (SOTA Strategy)**: Predicts % daily returns instead of absolute prices, significantly improving model stability and generalizability across different price scales.
 - **CNN-LSTM-Transformer Hybrid**:
@@ -23,13 +23,13 @@ Unlike traditional price predictors, this system focuses on **Percentage Returns
 - **Financial Backtesting**: Integrated simulator to evaluate the economic performance of the model (Total Return, Sharpe Ratio, MDD, Win Rate).
 - **Dual Scaler System**: Separate normalization logic for features and targets to eliminate data leakage and price explosion issues during reconstruction.
 
-## 🛠️ Requirements
+## Requirements
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 📈 How to Use
+## How to Use
 
 1.  **Place your data**: Put your stock data CSV files in the `data/` directory (Columns: `date`, `open`, `high`, `low`, `close`, `volume`).
 2.  **Run the pipeline**:
@@ -45,7 +45,7 @@ The system will orchestrate:
 4. **Backtesting analysis**
 5. 30-day Future Forecasting & Plotting
 
-## ⚙️ Configuration (`config/config.py`)
+## Configuration (`config/config.py`)
 
 - **PREDICT_RETURNS**: Toggle between price/return prediction modes.
 - **ENSEMBLE_SIZE**: Number of parallel models to train.
