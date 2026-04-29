@@ -1,3 +1,22 @@
+# Python
 .venv/
 __pycache__/
+*.pyc
+*.pyo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Environment
+.env
+
+# Project outputs (data, models, results)
+data/
+results/
+logs/
+
+# Model files
+*.h5
+*.keras
+*.pkl

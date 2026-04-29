@@ -11,7 +11,7 @@ FUTURE_DAYS = 30               # Number of future days to predict
 PREDICT_RETURNS = True         # If True, predict % returns instead of absolute prices
 ENSEMBLE_SIZE = 3              # Number of models in the ensemble
 WALK_FORWARD_FOLDS = 3         # Number of folds for walk-forward validation
-NORMALIZE_METHOD = 'minmax'    # Normalization method
+
 RANDOM_SEED = 42              # Random seed for reproducibility
 
 # Feature Columns Configuration

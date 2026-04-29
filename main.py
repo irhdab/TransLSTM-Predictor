@@ -1,7 +1,10 @@
 import os
 import sys
+import argparse
+import random
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 from sklearn.preprocessing import RobustScaler
 from config import config
 from modules.data_loader import DataProcessor
@@ -9,19 +12,79 @@ from modules.model_builder import create_lstm_transformer_model as build_model
 from modules.trainer import ModelTrainer
 from modules.backtester import Backtester
 
+
+def parse_args():
+    """Parse command-line arguments with argparse. Overrides config values at runtime."""
+    parser = argparse.ArgumentParser(
+        description='TransLSTM-Predictor: CNN-BiLSTM-Transformer Hybrid Stock Prediction System'
+    )
+    parser.add_argument('csv_path', help='Path to the stock data CSV file (columns: date, open, high, low, close, volume)')
+    parser.add_argument('--epochs', type=int, default=None, help=f'Max training epochs (default: {config.EPOCHS})')
+    parser.add_argument('--ensemble-size', type=int, default=None, help=f'Number of ensemble models (default: {config.ENSEMBLE_SIZE})')
+    parser.add_argument('--seq-length', type=int, default=None, help=f'Input sequence length (default: {config.SEQ_LENGTH})')
+    parser.add_argument('--future-days', type=int, default=None, help=f'Future days to predict (default: {config.FUTURE_DAYS})')
+    parser.add_argument('--folds', type=int, default=None, help=f'Walk-forward validation folds (default: {config.WALK_FORWARD_FOLDS})')
+    parser.add_argument('--seed', type=int, default=None, help=f'Random seed (default: {config.RANDOM_SEED})')
+    return parser.parse_args()
+
+
+def apply_overrides(args):
+    """Apply CLI argument overrides to config module."""
+    if args.epochs is not None:
+        config.EPOCHS = args.epochs
+    if args.ensemble_size is not None:
+        config.ENSEMBLE_SIZE = args.ensemble_size
+    if args.seq_length is not None:
+        config.SEQ_LENGTH = args.seq_length
+    if args.future_days is not None:
+        config.FUTURE_DAYS = args.future_days
+    if args.folds is not None:
+        config.WALK_FORWARD_FOLDS = args.folds
+    if args.seed is not None:
+        config.RANDOM_SEED = args.seed
+
+
+def set_seed(seed):
+    """Fix all random seeds for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
+
+def save_fold_metrics(all_fold_metrics, csv_path):
+    """Save fold-level metrics to a CSV file in the logs directory."""
+    df = pd.DataFrame(all_fold_metrics)
+    df.index.name = 'fold'
+    df.index = df.index + 1  # 1-indexed folds
+
+    # Add summary row
+    summary = df.mean()
+    summary.name = 'MEAN'
+    df = pd.concat([df, summary.to_frame().T])
+
+    timestamp = config.get_timestamp()
+    csv_name = os.path.splitext(os.path.basename(csv_path))[0]
+    log_path = os.path.join(config.LOGS_PATH, f'fold_metrics_{csv_name}_{timestamp}.csv')
+    df.to_csv(log_path)
+    print(f"✓ Fold metrics saved to {log_path}")
+    return df
+
+
 def main():
     """
     Main function to run the high-accuracy quantitative pipeline.
     Includes Ensemble training and Walk-forward validation.
     """
+    args = parse_args()
+    apply_overrides(args)
     config.ensure_directories()
 
-    if len(sys.argv) > 1:
-        user_csv_path = sys.argv[1]
-    else:
-        print("Error: No CSV path provided.")
-        sys.exit(1)
-    
+    # Fix random seeds
+    set_seed(config.RANDOM_SEED)
+
+    user_csv_path = args.csv_path
+
     data_processor = DataProcessor(csv_path=user_csv_path, config=config)
     raw_data = data_processor.load_raw_data()
     
@@ -63,7 +126,6 @@ def main():
         norm_features, norm_targets, scaler, target_scaler = data_processor.normalize_data(features, y_all, train_end=train_end_idx + seq_length)
         
         # Re-create sequences with normalized features and targets
-        # We need to ensure we use the same sequence generation logic
         sequences_norm, _, _ = data_processor.create_sequences(norm_features, original_dates)
         
         fold_X_train = sequences_norm[:train_end_idx]
@@ -95,17 +157,13 @@ def main():
         # Average ensemble predictions (Normalized)
         avg_preds_norm = np.mean(fold_predictions_norm, axis=0)
         
-        # Evaluate Ensemble performance by tricking ModelTrainer.evaluate
-        # We replace the last model with a "dummy" or just use the logic
-        # Actually, let's just use the trainer's evaluate method with our averaged predictions
-        # Modification: trainer.evaluate needs to handle direct prediction input or we inject it
-        
-        # Let's perform a manual evaluation for the ensemble for better accuracy
+        # Evaluate using predictions_override (no more monkey patch)
         eval_trainer = ModelTrainer(fold_models[0], config, scaler, user_csv_path, target_scaler=target_scaler)
-        # We "hack" the model's predict to return our average
-        eval_trainer.model.predict = lambda x, **kwargs: avg_preds_norm
-        
-        res = eval_trainer.evaluate(fold_X_test, fold_y_test, fold_test_dates, last_actual_prices=last_actual_prices)
+        res = eval_trainer.evaluate(
+            fold_X_test, fold_y_test, fold_test_dates,
+            last_actual_prices=last_actual_prices,
+            predictions_override=avg_preds_norm
+        )
         fold_mse, fold_mae = res[0], res[1]
         test_prices_actual, test_prices_predicted = res[3], res[4]
         
@@ -118,6 +176,21 @@ def main():
             final_test_actual = test_prices_actual
             final_test_pred = test_prices_predicted
             final_test_dates = fold_test_dates
+
+    # Save fold metrics to CSV
+    metrics_df = save_fold_metrics(all_fold_metrics, user_csv_path)
+    print(f"\n--- Walk-forward Validation Summary ---")
+    print(f"  Average MSE: {metrics_df.loc['MEAN', 'mse']:.6f}")
+    print(f"  Average MAE: {metrics_df.loc['MEAN', 'mae']:.6f}")
+
+    # Save ensemble models
+    print("\n--- Saving Ensemble Models ---")
+    csv_name = os.path.splitext(os.path.basename(user_csv_path))[0]
+    timestamp = config.get_timestamp()
+    for i, m in enumerate(final_ensemble_models):
+        model_path = os.path.join(config.MODEL_SAVE_PATH, f'{csv_name}_ensemble_{i+1}_{timestamp}.keras')
+        m.save(model_path)
+        print(f"  ✓ Model {i+1} saved to {model_path}")
 
     # 4. Backtesting on Final Fold (Ensemble Results)
     backtester = Backtester(config)

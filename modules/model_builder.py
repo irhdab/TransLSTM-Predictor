@@ -34,13 +34,14 @@ class PositionalEncoding(Layer):
 
 def transformer_encoder_block(inputs, config):
     """
-    Create a Transformer encoder block.
+    Create a Transformer encoder block with Dropout for regularization.
     """
     # Multi-Head Self-Attention
     attention_output = MultiHeadAttention(
         num_heads=config.TRANSFORMER_HEADS,
         key_dim=inputs.shape[-1]
     )(inputs, inputs)
+    attention_output = Dropout(config.DROPOUT_RATE)(attention_output)
     
     # Residual connection and layer normalization
     attention_output = Add()([inputs, attention_output])
@@ -48,6 +49,7 @@ def transformer_encoder_block(inputs, config):
     
     # Feed-Forward Network
     ffn = Dense(config.TRANSFORMER_FF_DIM, activation=config.ACTIVATION)(attention_output)
+    ffn = Dropout(config.DROPOUT_RATE)(ffn)
     ffn = Dense(inputs.shape[-1])(ffn)
     
     # Residual connection and layer normalization
@@ -77,9 +79,9 @@ def create_lstm_transformer_model(seq_length, num_features, config):
     transformer_branch = GlobalAveragePooling1D()(transformer_branch)
     transformer_branch = Dense(128, activation=config.ACTIVATION)(transformer_branch)
     
-    # LSTM branch (takes original inputs or CNN output)
-    lstm_branch = LSTM(config.LSTM_UNITS_1, return_sequences=True)(inputs)
-    lstm_branch = LSTM(config.LSTM_UNITS_2, return_sequences=False)(lstm_branch)
+    # Bi-LSTM branch (takes original inputs)
+    lstm_branch = Bidirectional(LSTM(config.LSTM_UNITS_1, return_sequences=True))(inputs)
+    lstm_branch = Bidirectional(LSTM(config.LSTM_UNITS_2, return_sequences=False))(lstm_branch)
     
     # Concatenate branches
     concatenated = Concatenate()([transformer_branch, lstm_branch])

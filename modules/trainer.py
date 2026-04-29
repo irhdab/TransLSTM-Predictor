@@ -109,7 +109,7 @@ class ModelTrainer:
         print("✓ Model training completed")
         return history
 
-    def evaluate(self, X_test, y_test, test_dates, last_actual_prices=None, future_predictions_rescaled=None, future_dates=None):
+    def evaluate(self, X_test, y_test, test_dates, last_actual_prices=None, future_predictions_rescaled=None, future_dates=None, predictions_override=None):
         """
         Evaluate the model on test data and plot predictions.
         
@@ -125,7 +125,10 @@ class ModelTrainer:
             tuple: (mse, mae, mape) for price prediction, or (mse, mae) for returns prediction.
         """
         print("Evaluating model...")
-        y_pred = self.model.predict(X_test, verbose=0) # Shape: [num_samples, FUTURE_DAYS]
+        if predictions_override is not None:
+            y_pred = predictions_override
+        else:
+            y_pred = self.model.predict(X_test, verbose=0) # Shape: [num_samples, FUTURE_DAYS]
 
         if self.config.PREDICT_RETURNS:
             # Metrics on returns
