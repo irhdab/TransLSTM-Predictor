@@ -1,13 +1,10 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler, RobustScaler
-import warnings
-import os
-import sys
+from sklearn.preprocessing import RobustScaler
+import logging
 
-# Add the config directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
-import config
+
+logger = logging.getLogger(__name__)
 
 class DataProcessor:
     def __init__(self, csv_path, config):
@@ -31,14 +28,14 @@ class DataProcessor:
         Returns:
             pd.DataFrame: Loaded data
         """
-        print("Loading raw data...")
+        logger.info("Loading raw data")
         try:
             df = pd.read_csv(self.csv_path)
             df.columns = [col.strip().lower() for col in df.columns]
-            print(f"✓ Data loaded successfully: {df.shape}")
+            logger.info("Data loaded successfully: %s", df.shape)
             return df
         except Exception as e:
-            print(f"Error loading data: {e}")
+            logger.error("Error loading data: %s", e)
             raise
 
     def validate_data(self, df):
@@ -51,40 +48,40 @@ class DataProcessor:
         Returns:
             bool: True if data is valid, False otherwise
         """
-        print("Validating data...")
+        logger.info("Validating data")
         required_columns = ['date', 'open', 'high', 'low', 'close', 'volume']
         
         # Check if all required columns are present
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
-            print(f"Missing required columns: {missing_columns}")
+            logger.error("Missing required columns: %s", missing_columns)
             return False
             
         # Check for NaN values
         if df.isnull().sum().sum() > 0:
-            print("Missing values detected:")
-            print(df.isnull().sum())
+            logger.error("Missing values detected")
+            logger.error("%s", df.isnull().sum())
             return False
             
         # Check for negative volume
         if (df['volume'] < 0).any():
-            print("Negative volume values detected")
+            logger.error("Negative volume values detected")
             return False
             
         # Check logical consistency
         if (df['high'] < df['low']).any():
-            print("Inconsistent high/low values detected")
+            logger.error("Inconsistent high/low values detected")
             return False
             
         if (df['high'] < df['close']).any():
-            print("Inconsistent high/close values detected")
+            logger.error("Inconsistent high/close values detected")
             return False
             
         if (df['low'] > df['close']).any():
-            print("Inconsistent low/close values detected")
+            logger.error("Inconsistent low/close values detected")
             return False
             
-        print("✓ Data validation passed")
+        logger.info("Data validation passed")
         return True
 
     def parse_dates(self, df):
@@ -97,19 +94,19 @@ class DataProcessor:
         Returns:
             pd.DataFrame: DataFrame with parsed and sorted dates
         """
-        print("Parsing dates...")
+        logger.info("Parsing dates")
         df = df.copy()
         df['date'] = pd.to_datetime(df['date'], errors='coerce')
         df = df.dropna(subset=['date'])
         df = df.sort_values('date').reset_index(drop=True)
-        print("✓ Dates parsed and sorted")
+        logger.info("Dates parsed and sorted")
         return df
 
     def handle_outliers(self, df):
         """
         Handle outliers using IQR method on price returns by clipping (prevents time-series gaps).
         """
-        print("Handling outliers using price returns (Clipping)...")
+        logger.info("Handling outliers using price returns (clipping)")
         df = df.copy()
         
         # Calculate daily returns
@@ -133,14 +130,17 @@ class DataProcessor:
         # Prevents continuous drift across the entire time series
         df.loc[outlier_mask, 'close'] = df['close'].shift(1)[outlier_mask] * (1 + returns_clipped[outlier_mask])
         
-        print(f"Outliers handled: {outlier_mask.sum()} values clipped to boundaries (no rows removed, time-series continuity preserved).")
+        logger.info(
+            "Outliers handled: %s values clipped to boundaries (no rows removed, time-series continuity preserved)",
+            outlier_mask.sum(),
+        )
         return df
 
     def extract_features(self, df):
         """
         Calculate technical indicators and extract features.
         """
-        print("Calculating technical indicators and extracting features...")
+        logger.info("Calculating technical indicators and extracting features")
         df = df.copy()
         
         # Moving Averages
@@ -183,7 +183,7 @@ class DataProcessor:
         self.data_with_indicators = df
         
         features = df[self.config.FEATURE_COLS].values
-        print(f"✓ Features extracted: {features.shape}")
+        logger.info("Features extracted: %s", features.shape)
         return features
 
     def normalize_data(self, features, targets=None, train_end=None):
@@ -196,7 +196,7 @@ class DataProcessor:
             train_end (int, optional): The index where training data ends. 
                                       If None, uses config.TEST_SPLIT_RATIO.
         """
-        print("Normalizing data (Dual Scaler System with Leakage Prevention)...")
+        logger.info("Normalizing data (dual scaler system with leakage prevention)")
         
         if train_end is None:
             seq_length = self.config.SEQ_LENGTH
@@ -220,14 +220,14 @@ class DataProcessor:
             self.target_scaler.fit(targets[:target_train_cutoff])
             norm_targets = self.target_scaler.transform(targets)
             
-        print(f"✓ Normalization completed (Fitted up to index {train_end})")
+        logger.info("Normalization completed (fitted up to index %s)", train_end)
         return norm_features, norm_targets, self.scaler, self.target_scaler
 
     def create_sequences(self, data, original_dates):
         """
         Create multi-step sequences. Returns RAW targets for normalization.
         """
-        print("Creating multi-step sequences (Raw Targets)...")
+        logger.info("Creating multi-step sequences (raw targets)")
         seq_length = self.config.SEQ_LENGTH
         future_days = self.config.FUTURE_DAYS
         

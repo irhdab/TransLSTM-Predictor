@@ -2,13 +2,12 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import numpy as np
-import sys
 import os
 import matplotlib.pyplot as plt
+import logging
 
-# Add the config directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
-import config
+
+logger = logging.getLogger(__name__)
 
 class ModelTrainer:
     def __init__(self, model, config, scaler, csv_path, target_scaler=None):
@@ -32,15 +31,14 @@ class ModelTrainer:
         """
         Compile the model with specified optimizer, loss, and metrics.
         """
-        print("Compiling model...")
+        logger.info("Compiling model")
         optimizer = tf.keras.optimizers.Adam(learning_rate=self.config.LEARNING_RATE)
         self.model.compile(
             optimizer=optimizer,
             loss=self.config.LOSS_FUNCTION,
             metrics=['mae']
         )
-        print("✓ Model compiled successfully")
-        # self.model.summary() # Commented out to avoid console width error in some environments
+        logger.info("Model compiled successfully")
 
     def setup_callbacks(self):
         """
@@ -49,7 +47,7 @@ class ModelTrainer:
         Returns:
             list: List of callback objects
         """
-        print("Setting up callbacks...")
+        logger.info("Setting up callbacks")
         callbacks = []
         
         # Early stopping
@@ -69,7 +67,7 @@ class ModelTrainer:
         )
         callbacks.append(reduce_lr)
         
-        print("✓ Callbacks set up successfully")
+        logger.info("Callbacks set up successfully")
         return callbacks
 
     def train(self, X_train, y_train, X_val=None, y_val=None):
@@ -85,7 +83,7 @@ class ModelTrainer:
         Returns:
             History object
         """
-        print("Starting model training...")
+        logger.info("Starting model training")
         
         # If validation data not provided, use validation split
         validation_data = None
@@ -106,7 +104,7 @@ class ModelTrainer:
             verbose=1
         )
         
-        print("✓ Model training completed")
+        logger.info("Model training completed")
         return history
 
     def evaluate(self, X_test, y_test, test_dates, last_actual_prices=None, future_predictions_rescaled=None, future_dates=None, predictions_override=None):
@@ -124,7 +122,7 @@ class ModelTrainer:
         Returns:
             tuple: (mse, mae, mape) for price prediction, or (mse, mae) for returns prediction.
         """
-        print("Evaluating model...")
+        logger.info("Evaluating model")
         if predictions_override is not None:
             y_pred = predictions_override
         else:
@@ -135,9 +133,12 @@ class ModelTrainer:
             mse = mean_squared_error(y_test.flatten(), y_pred.flatten())
             mae = mean_absolute_error(y_test.flatten(), y_pred.flatten())
             
-            print(f"Evaluation results (Multi-step return prediction over {self.config.FUTURE_DAYS} days):")
-            print(f"  - MSE (returns): {mse:.6f}")
-            print(f"  - MAE (returns): {mae:.6f}")
+            logger.info(
+                "Evaluation results (multi-step return prediction over %s days)",
+                self.config.FUTURE_DAYS,
+            )
+            logger.info("MSE (returns): %.6f", mse)
+            logger.info("MAE (returns): %.6f", mae)
 
             # Denormalize returns
             # Use target_scaler if it exists, otherwise assume no scaling or dummy indexing
@@ -200,7 +201,6 @@ class ModelTrainer:
             mse = mean_squared_error(y_test_rescaled_all_steps.flatten(), y_pred_rescaled_all_steps.flatten())
             mae = mean_absolute_error(y_test_rescaled_all_steps.flatten(), y_pred_rescaled_all_steps.flatten())
             
-            # ... (Simplified for this snippet)
             self.plot_predictions(y_test_rescaled_all_steps[:, 0], y_pred_rescaled_all_steps[:, 0], test_dates, future_predictions_rescaled, future_dates)
             
             return mse, mae, 0, y_test_rescaled_all_steps[:, 0], y_pred_rescaled_all_steps[:, 0]
@@ -228,7 +228,7 @@ class ModelTrainer:
         plot_filename = os.path.splitext(csv_filename)[0] + f'_{self.config.get_timestamp()}.png'
         plot_path = os.path.join(self.config.PLOTS_SAVE_PATH, plot_filename)
         plt.savefig(plot_path)
-        print(f"Plot saved to {plot_path}")
+        logger.info("Plot saved to %s", plot_path)
 
     def save_model(self, filepath):
         """
@@ -237,6 +237,6 @@ class ModelTrainer:
         Args:
             filepath (str): Path to save the model
         """
-        print(f"Saving model to {filepath}...")
+        logger.info("Saving model to %s", filepath)
         self.model.save(filepath)
-        print("✓ Model saved successfully")
+        logger.info("Model saved successfully")

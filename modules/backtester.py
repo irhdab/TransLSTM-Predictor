@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 class Backtester:
     def __init__(self, config):
@@ -17,7 +21,7 @@ class Backtester:
             predicted_prices (np.array): Daily predicted prices (1st step of multi-step).
             dates (pd.Series): Corresponding dates.
         """
-        print("\n--- Running Backtesting Simulation ---")
+        logger.info("--- Running Backtesting Simulation ---")
         
         # Create a signals dataframe
         results = pd.DataFrame({
@@ -62,13 +66,13 @@ class Backtester:
         return results
 
     def print_report(self, total, market, sharpe, mdd, win_rate):
-        print(f"{'Metric':<20} | {'Strategy':<15} | {'Market (B&H)':<15}")
-        print("-" * 55)
-        print(f"{'Total Return':<20} | {total*100:14.2f}% | {market*100:14.2f}%")
-        print(f"{'Sharpe Ratio':<20} | {sharpe:14.2f} | N/A")
-        print(f"{'Max Drawdown':<20} | {mdd*100:14.2f}% | N/A")
-        print(f"{'Win Rate':<20} | {win_rate*100:14.2f}% | N/A")
-        print("-" * 55)
+        logger.info("%-20s | %-15s | %-15s", "Metric", "Strategy", "Market (B&H)")
+        logger.info("%s", "-" * 55)
+        logger.info("%-20s | %14.2f%% | %14.2f%%", "Total Return", total * 100, market * 100)
+        logger.info("%-20s | %14.2f | N/A", "Sharpe Ratio", sharpe)
+        logger.info("%-20s | %14.2f%% | N/A", "Max Drawdown", mdd * 100)
+        logger.info("%-20s | %14.2f%% | N/A", "Win Rate", win_rate * 100)
+        logger.info("%s", "-" * 55)
 
     def plot_performance(self, results):
         plt.figure(figsize=self.config.FIGURE_SIZE)
@@ -84,4 +88,4 @@ class Backtester:
         
         plot_path = os.path.join(self.config.PLOTS_SAVE_PATH, 'backtest_results.png')
         plt.savefig(plot_path)
-        print(f"Backtest plot saved to {plot_path}")
+        logger.info("Backtest plot saved to %s", plot_path)

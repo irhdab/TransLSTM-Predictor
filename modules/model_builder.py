@@ -1,13 +1,21 @@
 import tensorflow as tf
-from tensorflow.keras.layers import *
+from tensorflow.keras.layers import (
+    Add,
+    Bidirectional,
+    Concatenate,
+    Conv1D,
+    Dense,
+    Dropout,
+    GlobalAveragePooling1D,
+    Input,
+    LSTM,
+    Layer,
+    LayerNormalization,
+    MaxPooling1D,
+    MultiHeadAttention,
+)
 from tensorflow.keras.models import Model
 import numpy as np
-import sys
-import os
-
-# Add the config directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
-import config
 
 class PositionalEncoding(Layer):
     def __init__(self, seq_length, d_model, **kwargs):

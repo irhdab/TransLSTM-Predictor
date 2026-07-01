@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import random
+import logging
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -10,6 +11,9 @@ from modules.data_loader import DataProcessor
 from modules.model_builder import create_lstm_transformer_model as build_model
 from modules.trainer import ModelTrainer
 from modules.backtester import Backtester
+
+
+logger = logging.getLogger(__name__)
 
 
 def parse_args():
@@ -68,19 +72,18 @@ class StockPipeline:
         """Load and process the stock data."""
         self.raw_data = self.data_processor.load_raw_data()
         if not self.data_processor.validate_data(self.raw_data):
-            print("✘ Data validation failed.")
-            sys.exit(1)
+            raise ValueError("Data validation failed")
 
         data = self.data_processor.parse_dates(self.raw_data)
         data = self.data_processor.handle_outliers(data)
         self.processed_data = data
         self.original_dates = data['date']
         self.features = self.data_processor.extract_features(data)
-        print("✓ Data preparation complete.")
+        logger.info("Data preparation complete")
 
     def run_walk_forward_validation(self):
         """Execute the walk-forward validation loop."""
-        print(f"\n--- Starting Walk-forward Validation ({config.WALK_FORWARD_FOLDS} folds) ---")
+        logger.info("--- Starting Walk-forward Validation (%s folds) ---", config.WALK_FORWARD_FOLDS)
         
         seq_len = config.SEQ_LENGTH
         future_days = config.FUTURE_DAYS
@@ -89,7 +92,7 @@ class StockPipeline:
         all_fold_metrics = []
 
         for fold in range(config.WALK_FORWARD_FOLDS):
-            print(f"\n>> Processing Fold {fold + 1}/{config.WALK_FORWARD_FOLDS}")
+            logger.info(">> Processing Fold %s/%s", fold + 1, config.WALK_FORWARD_FOLDS)
             
             # 1. Define split points (60% base + incremental folds)
             train_end_idx = int(total_samples * (0.6 + 0.1 * fold))
@@ -136,7 +139,7 @@ class StockPipeline:
         fold_models = []
         fold_predictions_norm = []
         
-        print(f"Training Ensemble (Size: {config.ENSEMBLE_SIZE}, Samples: {len(X_train)})...")
+        logger.info("Training ensemble (size=%s, samples=%s)", config.ENSEMBLE_SIZE, len(X_train))
         for i in range(config.ENSEMBLE_SIZE):
             model = build_model(seq_length=config.SEQ_LENGTH, num_features=self.features.shape[1], config=config)
             trainer = ModelTrainer(model, config, None, self.csv_path) # scalers passed during eval
@@ -179,14 +182,14 @@ class StockPipeline:
         log_path = os.path.join(config.LOGS_PATH, f'fold_metrics_{csv_name}_{timestamp}.csv')
         df.to_csv(log_path)
         
-        print(f"\n--- Walk-forward Validation Summary ---")
-        print(f"  Average MSE: {summary['mse']:.6f}")
-        print(f"  Average MAE: {summary['mae']:.6f}")
-        print(f"✓ Metrics saved to {log_path}")
+        logger.info("--- Walk-forward Validation Summary ---")
+        logger.info("Average MSE: %.6f", summary['mse'])
+        logger.info("Average MAE: %.6f", summary['mae'])
+        logger.info("Metrics saved to %s", log_path)
 
     def save_models(self):
         """Save the final ensemble models."""
-        print("\n--- Saving Ensemble Models ---")
+        logger.info("--- Saving Ensemble Models ---")
         csv_name = os.path.splitext(os.path.basename(self.csv_path))[0]
         timestamp = config.get_timestamp()
         
@@ -194,7 +197,7 @@ class StockPipeline:
             fname = f'{csv_name}_ensemble_{i+1}_{timestamp}.keras'
             path = os.path.join(config.MODEL_SAVE_PATH, fname)
             model.save(path)
-            print(f"  ✓ Model {i+1} saved to {path}")
+            logger.info("Model %s saved to %s", i + 1, path)
 
     def run_backtest(self):
         """Run backtesting on the final fold results."""
@@ -207,7 +210,7 @@ class StockPipeline:
 
     def generate_final_prediction(self):
         """Generate one-shot future prediction for the next N days."""
-        print("\n--- Generating Final Future Prediction ---")
+        logger.info("--- Generating Final Future Prediction ---")
         scaler = self.final_scalers['scaler']
         target_scaler = self.final_scalers['target_scaler']
         
@@ -234,7 +237,7 @@ class StockPipeline:
         last_date = self.original_dates.iloc[-1]
         future_dates = pd.date_range(start=last_date, periods=config.FUTURE_DAYS + 1, freq='B')[1:]
         
-        print(f"Final Future Prices (Next {config.FUTURE_DAYS} days): {future_prices[:5]}")
+        logger.info("Final future prices (next %s days): %s", config.FUTURE_DAYS, future_prices[:5])
         
         # 5. Visualize
         viz_trainer = ModelTrainer(self.final_ensemble_models[0], config, scaler, self.csv_path, target_scaler=target_scaler)
@@ -249,18 +252,28 @@ class StockPipeline:
 
 def main():
     """Main execution entry point."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     args = parse_args()
     apply_config_overrides(args)
     config.ensure_directories()
     set_seed(config.RANDOM_SEED)
 
-    # Initialize and execute pipeline
-    pipeline = StockPipeline(args.csv_path)
-    pipeline.prepare_data()
-    pipeline.run_walk_forward_validation()
-    pipeline.save_models()
-    pipeline.run_backtest()
-    pipeline.generate_final_prediction()
+    try:
+        pipeline = StockPipeline(args.csv_path)
+        pipeline.prepare_data()
+        pipeline.run_walk_forward_validation()
+        pipeline.save_models()
+        pipeline.run_backtest()
+        pipeline.generate_final_prediction()
+    except ValueError as err:
+        logger.error("Pipeline aborted: %s", err)
+        sys.exit(1)
+    except Exception:
+        logger.exception("Pipeline failed with an unexpected error")
+        sys.exit(1)
 
 
 if __name__ == '__main__':
