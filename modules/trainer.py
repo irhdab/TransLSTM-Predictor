@@ -1,16 +1,27 @@
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.models import Model
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.preprocessing import RobustScaler
 import numpy as np
 import os
 import matplotlib.pyplot as plt
 import logging
+import pandas as pd
+from types import ModuleType
 
 
 logger = logging.getLogger(__name__)
 
 class ModelTrainer:
-    def __init__(self, model, config, scaler, csv_path, target_scaler=None):
+    def __init__(
+        self,
+        model: Model,
+        config: ModuleType,
+        scaler: RobustScaler | None,
+        csv_path: str,
+        target_scaler: RobustScaler | None = None,
+    ) -> None:
         """
         Initialize the ModelTrainer with model and configuration.
         
@@ -27,7 +38,7 @@ class ModelTrainer:
         self.target_scaler = target_scaler
         self.csv_path = csv_path
 
-    def compile_model(self):
+    def compile_model(self) -> None:
         """
         Compile the model with specified optimizer, loss, and metrics.
         """
@@ -40,7 +51,7 @@ class ModelTrainer:
         )
         logger.info("Model compiled successfully")
 
-    def setup_callbacks(self):
+    def setup_callbacks(self) -> list[tf.keras.callbacks.Callback]:
         """
         Set up training callbacks.
         
@@ -70,7 +81,13 @@ class ModelTrainer:
         logger.info("Callbacks set up successfully")
         return callbacks
 
-    def train(self, X_train, y_train, X_val=None, y_val=None):
+    def train(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: np.ndarray | None = None,
+        y_val: np.ndarray | None = None,
+    ) -> tf.keras.callbacks.History:
         """
         Train the model.
         
@@ -107,7 +124,16 @@ class ModelTrainer:
         logger.info("Model training completed")
         return history
 
-    def evaluate(self, X_test, y_test, test_dates, last_actual_prices=None, future_predictions_rescaled=None, future_dates=None, predictions_override=None):
+    def evaluate(
+        self,
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+        test_dates: pd.Series,
+        last_actual_prices: np.ndarray | None = None,
+        future_predictions_rescaled: np.ndarray | None = None,
+        future_dates: pd.Series | None = None,
+        predictions_override: np.ndarray | None = None,
+    ) -> tuple[float, float, float, np.ndarray, np.ndarray]:
         """
         Evaluate the model on test data and plot predictions.
         
@@ -205,7 +231,14 @@ class ModelTrainer:
             
             return mse, mae, 0, y_test_rescaled_all_steps[:, 0], y_pred_rescaled_all_steps[:, 0]
 
-    def plot_predictions(self, y_true, y_pred, test_dates, future_predictions=None, future_dates=None):
+    def plot_predictions(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        test_dates: pd.Series,
+        future_predictions: np.ndarray | list[float] | None = None,
+        future_dates: pd.Series | pd.DatetimeIndex | None = None,
+    ) -> None:
         """
         Plot actual vs predicted values.
         """
@@ -230,7 +263,7 @@ class ModelTrainer:
         plt.savefig(plot_path)
         logger.info("Plot saved to %s", plot_path)
 
-    def save_model(self, filepath):
+    def save_model(self, filepath: str) -> None:
         """
         Save the trained model.
         

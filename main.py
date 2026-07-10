@@ -6,6 +6,8 @@ import logging
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.keras.models import Model
+from sklearn.preprocessing import RobustScaler
 from config import config
 from modules.data_loader import DataProcessor
 from modules.model_builder import create_lstm_transformer_model as build_model
@@ -16,7 +18,7 @@ from modules.backtester import Backtester
 logger = logging.getLogger(__name__)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description='TransLSTM-Predictor: CNN-BiLSTM-Transformer Hybrid Stock Prediction System'
@@ -31,7 +33,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def apply_config_overrides(args):
+def apply_config_overrides(args: argparse.Namespace) -> None:
     """Apply CLI overrides to the global config."""
     overrides = {
         'EPOCHS': args.epochs,
@@ -46,7 +48,7 @@ def apply_config_overrides(args):
             setattr(config, key, value)
 
 
-def set_seed(seed):
+def set_seed(seed: int) -> None:
     """Ensure reproducibility by fixing all random seeds."""
     random.seed(seed)
     np.random.seed(seed)
@@ -55,7 +57,7 @@ def set_seed(seed):
 
 
 class StockPipeline:
-    def __init__(self, csv_path):
+    def __init__(self, csv_path: str) -> None:
         self.csv_path = csv_path
         self.data_processor = DataProcessor(csv_path=csv_path, config=config)
         self.raw_data = None
@@ -64,11 +66,11 @@ class StockPipeline:
         self.original_dates = None
         
         # State maintained across folds
-        self.final_ensemble_models = []
-        self.final_scalers = {}  # {scaler, target_scaler}
-        self.last_fold_results = {} # {actual, pred, dates}
+        self.final_ensemble_models: list[Model] = []
+        self.final_scalers: dict[str, RobustScaler | None] = {}
+        self.last_fold_results: dict[str, np.ndarray | pd.Series] = {}
 
-    def prepare_data(self):
+    def prepare_data(self) -> None:
         """Load and process the stock data."""
         self.raw_data = self.data_processor.load_raw_data()
         if not self.data_processor.validate_data(self.raw_data):
@@ -81,7 +83,7 @@ class StockPipeline:
         self.features = self.data_processor.extract_features(data)
         logger.info("Data preparation complete")
 
-    def run_walk_forward_validation(self):
+    def run_walk_forward_validation(self) -> None:
         """Execute the walk-forward validation loop."""
         logger.info("--- Starting Walk-forward Validation (%s folds) ---", config.WALK_FORWARD_FOLDS)
         
@@ -134,7 +136,7 @@ class StockPipeline:
 
         self._save_summary_metrics(all_fold_metrics)
 
-    def _train_fold_ensemble(self, X_train, y_train, X_test):
+    def _train_fold_ensemble(self, X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -> tuple[list[Model], np.ndarray]:
         """Internal helper to train an ensemble and return averaged predictions."""
         fold_models = []
         fold_predictions_norm = []
@@ -153,7 +155,17 @@ class StockPipeline:
         avg_preds_norm = np.mean(fold_predictions_norm, axis=0)
         return fold_models, avg_preds_norm
 
-    def _evaluate_fold(self, model, X_test, y_test, dates, scaler, target_scaler, last_prices, predictions):
+    def _evaluate_fold(
+        self,
+        model: Model,
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+        dates: pd.Series,
+        scaler: RobustScaler,
+        target_scaler: RobustScaler | None,
+        last_prices: np.ndarray,
+        predictions: np.ndarray,
+    ) -> tuple[float, float, float, np.ndarray, np.ndarray]:
         """Internal helper to evaluate model performance using rescaled prices."""
         eval_trainer = ModelTrainer(model, config, scaler, self.csv_path, target_scaler=target_scaler)
         return eval_trainer.evaluate(
@@ -162,12 +174,20 @@ class StockPipeline:
             predictions_override=predictions
         )
 
-    def _update_final_state(self, models, scaler, target_scaler, actual, pred, dates):
+    def _update_final_state(
+        self,
+        models: list[Model],
+        scaler: RobustScaler,
+        target_scaler: RobustScaler | None,
+        actual: np.ndarray,
+        pred: np.ndarray,
+        dates: pd.Series,
+    ) -> None:
         self.final_ensemble_models = models
         self.final_scalers = {'scaler': scaler, 'target_scaler': target_scaler}
         self.last_fold_results = {'actual': actual, 'pred': pred, 'dates': dates}
 
-    def _save_summary_metrics(self, all_fold_metrics):
+    def _save_summary_metrics(self, all_fold_metrics: list[dict[str, float]]) -> None:
         """Save and print overall metrics across all folds."""
         df = pd.DataFrame(all_fold_metrics)
         df.index.name = 'fold'
@@ -187,7 +207,7 @@ class StockPipeline:
         logger.info("Average MAE: %.6f", summary['mae'])
         logger.info("Metrics saved to %s", log_path)
 
-    def save_models(self):
+    def save_models(self) -> None:
         """Save the final ensemble models."""
         logger.info("--- Saving Ensemble Models ---")
         csv_name = os.path.splitext(os.path.basename(self.csv_path))[0]
@@ -199,7 +219,7 @@ class StockPipeline:
             model.save(path)
             logger.info("Model %s saved to %s", i + 1, path)
 
-    def run_backtest(self):
+    def run_backtest(self) -> None:
         """Run backtesting on the final fold results."""
         backtester = Backtester(config)
         backtester.run(
@@ -208,7 +228,7 @@ class StockPipeline:
             self.last_fold_results['dates']
         )
 
-    def generate_final_prediction(self):
+    def generate_final_prediction(self) -> None:
         """Generate one-shot future prediction for the next N days."""
         logger.info("--- Generating Final Future Prediction ---")
         scaler = self.final_scalers['scaler']
@@ -250,7 +270,7 @@ class StockPipeline:
         )
 
 
-def main():
+def main() -> None:
     """Main execution entry point."""
     logging.basicConfig(
         level=logging.INFO,

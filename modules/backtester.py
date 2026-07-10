@@ -3,15 +3,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import logging
+from types import ModuleType
 
 
 logger = logging.getLogger(__name__)
 
 class Backtester:
-    def __init__(self, config):
+    def __init__(self, config: ModuleType) -> None:
         self.config = config
 
-    def run(self, actual_prices, predicted_prices, dates):
+    def run(self, actual_prices: np.ndarray, predicted_prices: np.ndarray, dates: pd.Series) -> pd.DataFrame:
         """
         Run a simple trading simulation.
         Strategy: If Pred[T+1] > Actual[T], Buy/Hold. Otherwise, Sell/Cash.
@@ -65,7 +66,7 @@ class Backtester:
         
         return results
 
-    def print_report(self, total, market, sharpe, mdd, win_rate):
+    def print_report(self, total: float, market: float, sharpe: float, mdd: float, win_rate: float) -> None:
         logger.info("%-20s | %-15s | %-15s", "Metric", "Strategy", "Market (B&H)")
         logger.info("%s", "-" * 55)
         logger.info("%-20s | %14.2f%% | %14.2f%%", "Total Return", total * 100, market * 100)
@@ -74,7 +75,7 @@ class Backtester:
         logger.info("%-20s | %14.2f%% | N/A", "Win Rate", win_rate * 100)
         logger.info("%s", "-" * 55)
 
-    def plot_performance(self, results):
+    def plot_performance(self, results: pd.DataFrame) -> None:
         plt.figure(figsize=self.config.FIGURE_SIZE)
         plt.plot(results['date'], results['cum_market'], label='Market (Buy & Hold)', color='gray', alpha=0.6)
         plt.plot(results['date'], results['cum_strategy'], label='Model Strategy', color='green', linewidth=2)

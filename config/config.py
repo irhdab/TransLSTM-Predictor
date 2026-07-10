@@ -61,11 +61,13 @@ PLOT_COLORS = {
 GRID_ALPHA = 0.3              # Grid transparency
 
 # Utility function to get current timestamp
-def get_timestamp():
+def get_timestamp() -> str:
+    """Return a timestamp string based on TIMESTAMP_FORMAT."""
     return datetime.now().strftime(TIMESTAMP_FORMAT)
 
 # Utility function to ensure directories exist
-def ensure_directories():
+def ensure_directories() -> None:
+    """Create configured output directories if they do not exist."""
     os.makedirs(DATA_PATH, exist_ok=True)
     os.makedirs(MODEL_SAVE_PATH, exist_ok=True)
     os.makedirs(PREDICTIONS_SAVE_PATH, exist_ok=True)

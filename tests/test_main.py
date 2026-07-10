@@ -4,7 +4,7 @@ from main import main
 
 class TestMain(unittest.TestCase):
 
-    def test_main_runs_without_errors(self):
+    def test_main_runs_without_errors(self) -> None:
         """
         Test that the main function runs without errors.
         """

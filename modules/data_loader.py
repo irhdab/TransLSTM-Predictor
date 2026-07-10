@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import RobustScaler
 import logging
+from types import ModuleType
 
 
 logger = logging.getLogger(__name__)
 
 class DataProcessor:
-    def __init__(self, csv_path, config):
+    def __init__(self, csv_path: str, config: ModuleType):
         """
         Initialize the DataProcessor with CSV path and configuration.
         
@@ -21,7 +22,7 @@ class DataProcessor:
         self.target_scaler = None
         self.data = None
 
-    def load_raw_data(self):
+    def load_raw_data(self) -> pd.DataFrame:
         """
         Load raw data from CSV file into a pandas DataFrame.
         
@@ -38,7 +39,7 @@ class DataProcessor:
             logger.error("Error loading data: %s", e)
             raise
 
-    def validate_data(self, df):
+    def validate_data(self, df: pd.DataFrame) -> bool:
         """
         Validate data integrity and structure.
         
@@ -84,7 +85,7 @@ class DataProcessor:
         logger.info("Data validation passed")
         return True
 
-    def parse_dates(self, df):
+    def parse_dates(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Parse and sort date column.
         
@@ -102,7 +103,7 @@ class DataProcessor:
         logger.info("Dates parsed and sorted")
         return df
 
-    def handle_outliers(self, df):
+    def handle_outliers(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Handle outliers using IQR method on price returns by clipping (prevents time-series gaps).
         """
@@ -136,7 +137,7 @@ class DataProcessor:
         )
         return df
 
-    def extract_features(self, df):
+    def extract_features(self, df: pd.DataFrame) -> np.ndarray:
         """
         Calculate technical indicators and extract features.
         """
@@ -186,7 +187,12 @@ class DataProcessor:
         logger.info("Features extracted: %s", features.shape)
         return features
 
-    def normalize_data(self, features, targets=None, train_end=None):
+    def normalize_data(
+        self,
+        features: np.ndarray,
+        targets: np.ndarray | None = None,
+        train_end: int | None = None,
+    ) -> tuple[np.ndarray, np.ndarray | None, RobustScaler, RobustScaler | None]:
         """
         Normalize features and targets separately to prevent scale mismatch and leakage.
         
@@ -223,7 +229,7 @@ class DataProcessor:
         logger.info("Normalization completed (fitted up to index %s)", train_end)
         return norm_features, norm_targets, self.scaler, self.target_scaler
 
-    def create_sequences(self, data, original_dates):
+    def create_sequences(self, data: np.ndarray, original_dates: pd.Series) -> tuple[np.ndarray, np.ndarray, pd.Series]:
         """
         Create multi-step sequences. Returns RAW targets for normalization.
         """
@@ -244,7 +250,7 @@ class DataProcessor:
             
         return np.array(sequences), np.array(targets), original_dates.iloc[seq_length - 1 : seq_length - 1 + len(sequences)].reset_index(drop=True)
 
-    def get_scaler(self):
+    def get_scaler(self) -> RobustScaler | None:
         """
         Get the fitted scaler for inverse transformation.
         

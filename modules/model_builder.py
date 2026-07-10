@@ -16,17 +16,18 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.models import Model
 import numpy as np
+from types import ModuleType
 
 class PositionalEncoding(Layer):
-    def __init__(self, seq_length, d_model, **kwargs):
+    def __init__(self, seq_length: int, d_model: int, **kwargs: object):
         super(PositionalEncoding, self).__init__(**kwargs)
         self.pos_encoding = self.positional_encoding(seq_length, d_model)
 
-    def get_angles(self, pos, i, d_model):
+    def get_angles(self, pos: np.ndarray, i: np.ndarray, d_model: int) -> np.ndarray:
         angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
         return pos * angle_rates
 
-    def positional_encoding(self, position, d_model):
+    def positional_encoding(self, position: int, d_model: int) -> tf.Tensor:
         angle_rads = self.get_angles(np.arange(position)[:, np.newaxis],
                                      np.arange(d_model)[np.newaxis, :],
                                      d_model)
@@ -37,10 +38,10 @@ class PositionalEncoding(Layer):
         pos_encoding = angle_rads[np.newaxis, ...]
         return tf.cast(pos_encoding, dtype=tf.float32)
 
-    def call(self, inputs):
+    def call(self, inputs: tf.Tensor) -> tf.Tensor:
         return inputs + self.pos_encoding[:, :tf.shape(inputs)[1], :]
 
-def transformer_encoder_block(inputs, config):
+def transformer_encoder_block(inputs: tf.Tensor, config: ModuleType) -> tf.Tensor:
     """
     Create a Transformer encoder block with Dropout for regularization.
     """
@@ -66,7 +67,7 @@ def transformer_encoder_block(inputs, config):
     
     return output
 
-def create_lstm_transformer_model(seq_length, num_features, config):
+def create_lstm_transformer_model(seq_length: int, num_features: int, config: ModuleType) -> Model:
     """
     Create CNN-LSTM-Transformer hybrid model with multi-step output.
     """
