@@ -11,10 +11,20 @@ Thumbs.db
 # Environment
 .env
 
-# Project outputs (data, models, results)
-data/
-results/
-logs/
+# Project outputs (keep dir structure via .gitkeep, ignore contents)
+data/*
+!data/TEST.csv
+results/models/*
+!results/models/.gitkeep
+results/plots/*
+!results/plots/.gitkeep
+results/predictions/*
+!results/predictions/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# Nested standalone copy (own .git) - do not track in outer repo
+TransLSTM-Predictor/
 
 # Model files
 *.h5
